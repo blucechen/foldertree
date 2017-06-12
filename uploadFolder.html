@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<title>TST自动化测试系统-文件夹上传</title>
+	<link rel="stylesheet" href="./assets/css/zTreeStyle/zTreeStyle.css" type="text/css">
+	<script type="text/javascript" src="./assets/js/jquery-1.4.4.min.js"></script>
+	<script type="text/javascript" src="./assets/js/jquery.ztree.core.js"></script>
+	<script type="text/javascript" src="./assets/js/jquery.ztree.excheck.js"></script>
+</head>
+<body>
+<input class="uploadfolder" title="点击选择文件夹" id="h5Input2" multiple="" webkitdirectory="" accept="*/*" type="file" name="html5uploader" style="cursor:pointer;">
+<br>
+
+<div>
+	
+	
+</div>
+
+
+
+<input type="button" value="点击上传" class="btn">
+<div class="zTreeDemoBackground left">
+	<ul id="treeDemo" class="ztree"></ul>
+</div>
+
+<script>
+	var inputFolder = document.querySelector(".uploadfolder");
+	var btn = document.querySelector(".btn");
+	var formData = null;
+
+	var zNodes = [];
+	var setting = {
+		view: {
+			selectedMulti: false
+		},
+		check: {
+			enable: true
+		},
+		data: {
+			simpleData: {
+				enable: true
+			}
+		},
+		callback: {
+			onCheck: onCheck
+		}
+	};
+	function onCheck(e, treeId, treeNode) {
+		var zTree = $.fn.zTree.getZTreeObj("treeDemo");
+		var checkedNodes = zTree.getCheckedNodes(true);
+	}
+	function createTree() {
+		$.fn.zTree.init($("#treeDemo"), setting, zNodes);
+	}
+	inputFolder.addEventListener("change", function (){
+		createFileTreeObj(this.files);
+		createTree();	
+	});
+	btn.onclick = function (){
+		var zTree = $.fn.zTree.getZTreeObj("treeDemo");
+		var checkedNodes = zTree.getCheckedNodes(true);//已经不是对应的File了
+		for(var key in checkedNodes){//只能通过比对的方式来获取那个被点击了---id的唯一性
+			var id = checkedNodes[key].id;
+			for(var innerKey in zNodes){
+				if (zNodes[innerKey].id == id) {
+					if (zNodes[innerKey].file) {
+						uploadFile(zNodes[innerKey].file);
+					}
+					break;//跳出来啊
+				}				
+			}
+		}
+	}
+
+	function createFileTreeObj(files){//成树了
+		var arrCur = null;
+		var arrPre = null;
+		var length = files.length - 1;
+		var firstLevel = 1;
+		var secondLevel = 1;
+		var objLevel1 = {};
+		for(var i = 0; i <= length; i++){
+			arrCur = files[i].webkitRelativePath.split("/");
+			arrCur.pop();
+			arrCur.shift();
+			if (arrCur.length == 0) {//先去掉直接是文件
+				objLevel1[firstLevel] = files[i];
+				firstLevel++;
+				continue;
+			}
+			if (i != 0) {//不直接是文件的了
+				var arrPre = files[i - 1].webkitRelativePath.split("/");//前一个
+				arrPre.pop();
+				arrPre.shift();//去除首尾位置
+				if (arrCur[0] != arrPre[0]) {
+					firstLevel++;//可以++了，证明到这里应该是已经换一级了
+					objLevel1[firstLevel] = {};//只有在换一级的时候才新建啊
+				}
+				objLevel1[firstLevel][files[i].webkitRelativePath] = files[i];
+			}
+			else {//是第一个--就直接加上去就可以了
+				objLevel1[firstLevel] = {};
+				objLevel1[firstLevel][files[i].webkitRelativePath] = files[i];
+			}
+		}
+		repeateTree(objLevel1);
+		resolveTree(objLevel1);
+	}
+	function repeateTree(obj, id){//这里是所有的文件列表-这个文件列表指的是将文件夹和文件分开了的
+		for(var key in obj){
+			var type = Object.prototype.toString.call(obj[key]);
+			if (type == "[object File]" || type =="[object String]") {//处理直接是文件的--过了这里的一定是文件夹
+				continue;
+			}
+			for(var k in obj[key]){//每个文件夹都一定在这里逗留了--在这里挂在文件夹的名称
+				obj[key]["folderName"] = k.split("/")[1];
+				break;
+			}
+			getResult(obj[key], key);//将文件夹传了过去
+		}
+	}
+	//处理处理单个包含 文件的 文件夹--这个文件这挂在文件夹上的，当然名字很长
+	function getResult(obj, key){//key为所在的父级层级
+		var index = 1;
+		var keyPre = "";
+		for(var innerKey in obj){
+			if (innerKey == "folderName") {
+				continue;
+			}
+			if (innerKey.split('/').length == 3) {//文件夹里面直接包含的文件
+				obj[key + index] = obj[innerKey];
+				delete obj[innerKey];
+				index ++;
+			}
+			else {//文件夹的文件夹中的文件
+				if (!keyPre || innerKey.split('/')[2] != keyPre.split("/")[2]) {//是否为第一个
+					index++;
+					obj[key + index] = {};
+				}
+				var position = innerKey.indexOf("/") + 1;
+				if (position) {//表明文件在嵌在文件夹内--添加到对应的对象中
+					obj[key + index][innerKey.substring(position)] = obj[innerKey];
+					delete obj[innerKey]
+				}	
+			}
+			keyPre = innerKey;
+		}
+		repeateTree(obj);
+	}
+	// 这里的objTree已经是排好队了，key就是对应的id
+	function resolveTree(objTree, pId, pIdPre){
+		pId = pId || 0;//没有就为0 啊
+		var objFile = null;
+		var objFolder = null;			
+		for(var key in objTree){
+			objFile = {};
+			objFolder = {};
+			if (Object.prototype.toString.call(objTree[key]) == "[object File]") {//文件
+				objFile.id = key;
+				objFile.name = objTree[key].name;
+				objFile.checked = true;
+				objFile.file = objTree[key];
+				objFile.pId = pId;
+				zNodes.push(objFile);
+				continue;
+			}
+			else if(Object.prototype.toString.call(objTree[key]) == "[object String]"){//文件夹的名称
+				objFolder.id = pId;
+				objFolder.pId = pIdPre || 0;//这个不对
+				objFolder.checked = true;
+				objFolder.open = false;
+				objFolder.name = objTree["folderName"];
+				zNodes.push(objFolder);
+			}
+			else {//文件夹--还是递归
+				resolveTree(objTree[key], key, pId);
+			}
+		}
+	}
+
+	function uploadFile(file){
+		formData = new FormData();
+		formData.append("uploadfile", file, file.name);
+		$.ajax({					  
+	        url: "http://localhost:8081/api/projects/P1002/schedules/S1126/scripts/file",
+	        type: "POST",
+	        data: formData,
+	        processData: false,
+	        contentType: false,
+	        success: function(response){
+	        	console.log(response,"response...........................");
+	        },
+	        error: function (error){
+	        	console.log(error, "error......................");
+	        }
+	    });
+	}
+
+</script>
+</body>
+</html>
