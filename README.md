@@ -29,6 +29,6 @@
 - 生成的对应的效果图
   + ![效果图](./images/tree.png)
 
-- [插件地址] 
+- [插件地址][]
   [插件地址]: https://github.com/zTree/zTree_v3
 
